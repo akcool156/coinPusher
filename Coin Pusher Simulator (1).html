@@ -1,0 +1,141 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Coin Pusher Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1c1e22;--pn:#2a2d33;--ln:#3d414a;--tx:#fff;--mu:#a0a7b3;--gold:#ffc83d;--grn:#4ade80;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:inherit}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:#1c1e22;color:#fff;font-family:Fredoka,system-ui,sans-serif}
+#app{max-width:920px;margin:0 auto;padding:12px}
+header{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:10px}
+#wname{font-size:17px;font-weight:600;color:var(--mu)}#money{font-size:38px;font-weight:700;color:var(--grn);line-height:1.1}
+.pg{flex:1;min-width:200px}.sm{font-size:13px;color:var(--mu);margin-bottom:5px}
+.bar{height:12px;background:var(--ln);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s}
+#tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tab{font:inherit;font-size:14px;padding:6px 12px;border-radius:20px;border:1px solid var(--ln);background:var(--pn);color:#fff;cursor:pointer}
+.tab.on{background:var(--gold);color:#222;border-color:var(--gold);font-weight:600}.tab:disabled{opacity:.45;cursor:not-allowed}
+main{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:14px}@media(max-width:760px){main{grid-template-columns:1fr}}
+canvas{width:100%;height:auto;display:block;border-radius:14px;background:#000;touch-action:manipulation}
+#drop{--p:100%;width:100%;margin-top:10px;padding:16px;font:inherit;font-size:24px;font-weight:700;color:#2a1d00;border:0;border-radius:14px;cursor:pointer;background:linear-gradient(90deg,#c9971a var(--p),#8a6a14 var(--p))}
+#drop:active{transform:scale(.98)}
+.up{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;margin-bottom:8px;padding:11px 14px;font:inherit;color:#fff;text-align:left;background:var(--pn);border:1px solid var(--ln);border-radius:12px;cursor:pointer}
+.up:hover:not(:disabled){border-color:var(--gold)}.up:disabled{opacity:.5;cursor:not-allowed}
+.up b{font-size:17px;display:block}.up small{color:var(--mu);font-size:13px}.up .c{color:var(--gold);font-weight:700;white-space:nowrap}
+#unl{background:#3a3010;border-color:var(--gold)}#odds{font-size:13px;color:var(--mu);margin:2px 0 12px;line-height:1.7}
+#odds span{display:inline-block;margin-right:12px}#odds i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.hide{display:none!important}#rst{font:inherit;font-size:13px;background:none;border:0;color:var(--mu);cursor:pointer;margin-top:6px;text-decoration:underline}
+#md{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:var(--pn);border:1px solid var(--gold);border-radius:16px;padding:22px;max-width:340px;text-align:center}
+.box p{font-size:18px;margin:0 0 14px}.box .up{justify-content:center;margin:0;font-weight:600}
+</style></head><body><div id="app">
+<header><div><div id="wname"></div><div id="money"></div></div>
+<div class="pg"><div class="sm" id="prog"></div><div class="bar"><i id="pb"></i></div></div></header>
+<div id="tabs"></div>
+<main><div><canvas id="cv" width="420" height="640"></canvas><button id="drop">Drop Coin</button></div>
+<div><div id="odds"></div>
+<button class="up" id="u_b"></button><button class="up" id="u_s"></button><button class="up" id="u_d"></button><button class="up" id="u_a"></button>
+<button class="up hide" id="unl"></button><div class="sm" id="msg"></div><button id="rst">Reset save</button></div></main></div>
+<div id="md" class="hide"><div class="box"><p id="mt"></p><button class="up" id="mb">Collect</button></div></div>
+<script>
+const $=id=>document.getElementById(id),g=$('cv').getContext('2d'),R=9,BASE=3,MAXL=15;
+const W=[
+{n:'The Arcade',bg:['#2a1646','#0f0820'],pl:'#ff5fa2',ac:'#ffc83d',p:[.7,.25,.05,0],vm:1,cm:1,req:6,unl:1500},
+{n:'Neon Factory',bg:['#06323d','#04121a'],pl:'#22e5ff',ac:'#ff3df2',p:[.5,.35,.13,.02],vm:6,cm:8,req:7,unl:30000},
+{n:'Treasure Vault',bg:['#3b2a0a','#140d02'],pl:'#e0a526',ac:'#fff1a8',p:[.3,.35,.28,.07],vm:40,cm:70,req:8,unl:600000},
+{n:'Cosmic Mint',bg:['#10163f','#05061a'],pl:'#9b7bff',ac:'#5cffc8',p:[.15,.3,.4,.15],vm:260,cm:600,req:9,unl:0}];
+const C=[{n:'Bronze',v:1,c:'#c97b3c',h:'#f0a766'},{n:'Silver',v:5,c:'#c4cbd4',h:'#fff'},{n:'Gold',v:25,c:'#ffc41f',h:'#fff3a0'},{n:'Diamond',v:100,c:'#3fb8ff',h:'#c9f1ff'}];
+const fmt=n=>{n=Math.floor(n);const s=['','K','M','B','T','Qa'];let i=0;while(n>=1000&&i<5){n/=1000;i++}return(i?n.toFixed(n<10?2:n<100?1:0):n)+s[i]};
+const def=()=>({u:0,m:0,s:0,d:0,b:0,a:0});
+let S=null,away=0;
+try{S=JSON.parse(localStorage.getItem('cps1'))}catch(e){}
+if(!S||!S.w||S.w.length!=4)S={w:W.map(def),cur:0,t:0,on:1};else away=(Date.now()-S.t)/1000;
+S.w[0].u=1;
+const X=()=>S.w[S.cur],spd=x=>1+.15*x.s,dl=x=>Math.max(.12,1.1*.9**x.d);
+const cost=(k,x)=>Math.ceil({s:20*1.55**x.s,d:20*1.55**x.d,b:40*1.7**x.b,a:150}[k]*W[S.cur].cm);
+function save(){try{S.t=Date.now();localStorage.setItem('cps1',JSON.stringify(S))}catch(e){}}
+
+let L=[],coins=[],fl=[],H,sc,ox,oy,cd=0,pulse=0;
+function build(){const n=BASE+X().b;L=[];
+ for(let i=0;i<n;i++){const r=i%2==0;L.push({y:80+i*70,d:r?1:-1,fs:r?0:70,fe:r?290:360,ph:i*1.7,bonus:i>=BASE,f:0,vf:0,x0:0,x1:0})}
+ H=80+n*70+60;sc=Math.min(1.1,620/H);ox=(420-360*sc)/2;oy=640-H*sc-8}
+function drop(){if(cd>0||coins.length>170)return;const x=X(),w=W[S.cur];cd=dl(x);
+ let r=Math.random(),k=0,a=0;for(;k<3;k++){a+=w.p[k];if(r<a)break}
+ coins.push({x:140+Math.random()*80,y:18,vx:(Math.random()-.5)*50,vy:0,k,v:C[k].v*w.vm,lv:-1})}
+function box(c,x0,y0,x1,y1,vx){const px=Math.max(x0,Math.min(c.x,x1)),py=Math.max(y0,Math.min(c.y,y1));
+ let dx=c.x-px,dy=c.y-py,d=Math.hypot(dx,dy);if(d>=R)return;
+ if(d<1e-6){c.y=y0-R;dx=0;dy=-1}else{dx/=d;dy/=d;c.x=px+dx*R;c.y=py+dy*R}
+ const vn=(c.vx-vx)*dx+c.vy*dy;if(vn<0){c.vx-=1.25*vn*dx;c.vy-=1.25*vn*dy}
+ if(dy<-.5)c.vx+=(vx-c.vx)*(vx?.12:.02)}
+function phys(h){const sp=spd(X());
+ for(const l of L){l.ph+=h*1.5*sp;l.f=95+95*Math.sin(l.ph);l.vf=95*1.5*sp*Math.cos(l.ph);l.x0=l.d>0?l.f-190:360-l.f;l.x1=l.d>0?l.f:550-l.f}
+ for(let i=coins.length-1;i>=0;i--){const c=coins[i];
+  c.vy=Math.min(800,c.vy+900*h);c.x+=c.vx*h;c.y+=c.vy*h;
+  if(c.x<R){c.x=R;c.vx=Math.abs(c.vx)*.3}if(c.x>360-R){c.x=360-R;c.vx=-Math.abs(c.vx)*.3}
+  for(let j=0;j<L.length;j++){const l=L[j];
+   if(Math.abs(c.y-l.y)<45){box(c,l.fs,l.y,l.fe,l.y+10,0);box(c,l.x0,l.y-12,l.x1,l.y,l.d*l.vf)}
+   if(l.bonus&&j>c.lv&&c.y>l.y+12){c.lv=j;c.v*=1.1;fl.push({x:c.x,y:c.y,t:.9,s:'+10%',c:'#ffc83d'})}}
+  if(c.y>H-30){X().m+=c.v;pulse=1;fl.push({x:Math.max(40,Math.min(320,c.x)),y:H-40,t:1,s:'+$'+fmt(c.v),c:'#4ade80'});coins.splice(i,1)}}
+ for(let i=0;i<coins.length;i++){const a=coins[i];
+  for(let j=i+1;j<coins.length;j++){const b=coins[j],dx=b.x-a.x;if(dx>2*R||dx<-2*R)continue;
+   const dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2>=4*R*R||d2<1e-6)continue;
+   const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,o=(2*R-d)/2;a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o;
+   const vn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(vn<0){const k=-1.2*vn/2;a.vx+=k*nx;a.vy+=k*ny;b.vx-=k*nx;b.vy-=k*ny}}}}
+function draw(){const w=W[S.cur];g.setTransform(1,0,0,1,0,0);
+ const gr=g.createLinearGradient(0,0,0,640);gr.addColorStop(0,w.bg[0]);gr.addColorStop(1,w.bg[1]);g.fillStyle=gr;g.fillRect(0,0,420,640);
+ g.setTransform(sc,0,0,sc,ox,oy);g.textAlign='center';
+ g.fillStyle='rgba(255,255,255,.06)';g.fillRect(0,0,360,H);
+ g.fillStyle=w.pl;g.fillRect(-8,0,8,H);g.fillRect(360,0,8,H);g.fillRect(-8,-8,376,8);
+ g.fillStyle='rgba(0,0,0,.45)';g.fillRect(110,0,140,16);g.fillStyle=w.ac;g.font='700 11px Fredoka,sans-serif';g.fillText('COIN SLOT',180,12);
+ for(const l of L){g.fillStyle=w.pl;g.fillRect(l.fs,l.y,l.fe-l.fs,10);
+  if(l.bonus){g.strokeStyle='#ffc83d';g.lineWidth=2;g.strokeRect(l.fs+1,l.y+1,l.fe-l.fs-2,8);
+   g.fillStyle='#ffc83d';g.font='700 11px Fredoka,sans-serif';g.fillText('+10%',l.d>0?325:35,l.y+4)}
+  g.save();g.beginPath();g.rect(0,0,360,H);g.clip();g.fillStyle=w.ac;g.fillRect(l.x0,l.y-12,190,12);g.fillStyle='rgba(0,0,0,.3)';
+  for(let s=0;s<190;s+=16)g.fillRect(l.x0+s,l.y-12,6,12);g.restore()}
+ const cy=H-60,cg=g.createLinearGradient(0,cy,0,H);cg.addColorStop(0,'rgba(74,222,128,'+(.18+pulse*.5)+')');cg.addColorStop(1,'rgba(74,222,128,.7)');
+ g.fillStyle=cg;g.fillRect(0,cy,360,60);g.fillStyle='#fff';g.globalAlpha=.8;g.font='700 26px Fredoka,sans-serif';g.fillText('$ COLLECTOR $',180,H-20);g.globalAlpha=1;
+ for(const c of coins){const k=C[c.k];g.beginPath();g.arc(c.x,c.y,R,0,7);g.fillStyle=k.c;if(c.k>1){g.shadowColor=k.c;g.shadowBlur=10}g.fill();g.shadowBlur=0;
+  g.lineWidth=2;g.strokeStyle='rgba(0,0,0,.45)';g.stroke();g.beginPath();g.arc(c.x,c.y,R*.58,0,7);g.strokeStyle=k.h;g.lineWidth=1.5;g.stroke()}
+ for(const f of fl){g.globalAlpha=Math.min(1,f.t*1.5);g.fillStyle=f.c;g.font='700 14px Fredoka,sans-serif';g.fillText(f.s,f.x,f.y)}g.globalAlpha=1}
+
+const rows=[['u_b','Extra Pushers',x=>`Tower ${BASE+x.b}/${BASE+W[S.cur].req} levels, +10% coin value each`],
+ ['u_s','Pusher Speed',x=>`Platforms x${spd(x).toFixed(2)} → x${(spd(x)+.15).toFixed(2)}`],
+ ['u_d','Drop Speed',x=>`Drop delay ${dl(x).toFixed(2)}s → ${dl({d:x.d+1}).toFixed(2)}s`],
+ ['u_a','Auto Drop',x=>'Drops coins for you']];
+function ui(){const x=X(),w=W[S.cur],rq=w.req;
+ $('money').textContent='$'+fmt(x.m);$('wname').textContent=`World ${S.cur+1}: ${w.n}`;
+ $('prog').textContent=`Tower completion: ${x.b}/${rq} bonus pushers`;$('pb').style.width=x.b/rq*100+'%';
+ $('drop').style.setProperty('--p',(cd<=0?100:(1-cd/dl(x))*100)+'%');
+ for(const[id,t,f]of rows){const k=id[2],b=$(id);let c=cost(k,x),mx=k=='b'?x.b>=rq:k=='a'?x.a:x[k]>=MAXL,ttl=t,sub=f(x),ct='$'+fmt(c),en=x.m>=c;
+  if(k=='a'&&x.a){ttl='Auto Drop: '+(S.on?'ON':'OFF');sub='Tap to toggle';ct='';en=1}
+  else if(mx){ct='MAX';en=0;sub=k=='b'?'Tower complete':'Fully upgraded'}
+  b.innerHTML=`<span><b>${ttl}</b><small>${sub}</small></span><span class="c">${ct}</span>`;b.disabled=!en}
+ const u=$('unl'),nx=W[S.cur+1],done=x.b>=rq;
+ u.classList.toggle('hide',!(done&&nx&&!S.w[S.cur+1].u));
+ if(nx){u.innerHTML=`<span><b>Unlock ${nx.n}</b><small>Tower complete</small></span><span class="c">$${fmt(w.unl)}</span>`;u.disabled=x.m<w.unl}
+ $('msg').textContent=done?(nx?(S.w[S.cur+1].u?'Tower complete. Next world is unlocked.':'Tower complete! Unlock the next world.'):'Final tower complete. You finished the game!'):'';}
+function tabs(){const t=$('tabs');t.innerHTML='';W.forEach((w,i)=>{const b=document.createElement('button');b.className='tab'+(i==S.cur?' on':'');
+ b.textContent=(S.w[i].u?'':'🔒 ')+w.n;b.disabled=!S.w[i].u;b.onclick=()=>{S.cur=i;coins=[];fl=[];cd=0;build();tabs();odds()};t.appendChild(b)})}
+function odds(){const w=W[S.cur];$('odds').innerHTML=w.p.map((p,i)=>p?`<span><i style="background:${C[i].c}"></i>${C[i].n} ${Math.round(p*100)}% ($${fmt(C[i].v*w.vm)})</span>`:'').join('')}
+function buy(k){const x=X(),c=cost(k,x);if(k=='a'&&x.a){S.on=!S.on;return}if(x.m<c)return;
+ if(k=='b'){if(x.b>=W[S.cur].req)return;x.b++;build()}else if(k=='a')x.a=1;else{if(x[k]>=MAXL)return;x[k]++}
+ x.m-=c;save()}
+for(const[id]of rows)$(id).onclick=()=>buy(id[2]);
+$('unl').onclick=()=>{const x=X(),w=W[S.cur];if(x.m<w.unl)return;x.m-=w.unl;S.w[S.cur+1].u=1;S.cur++;coins=[];fl=[];cd=0;build();tabs();odds();save()};
+$('drop').onclick=drop;
+addEventListener('keydown',e=>{if(e.code=='Space'){e.preventDefault();drop()}});
+let rc=0;$('rst').onclick=()=>{if(!rc){rc=1;$('rst').textContent='Click again to erase progress';setTimeout(()=>{rc=0;$('rst').textContent='Reset save'},3000)}else{try{localStorage.removeItem('cps1')}catch(e){}location.reload()}};
+$('mb').onclick=()=>$('md').classList.add('hide');
+addEventListener('visibilitychange',()=>{if(document.hidden)save()});setInterval(save,3000);
+
+build();tabs();odds();
+if(away>60&&X().a&&S.on){const x=X(),w=W[S.cur],avg=w.p.reduce((s,p,i)=>s+p*C[i].v,0)*w.vm*1.1**x.b,sec=Math.min(away,7200),gain=avg/dl(x)*.5*sec;
+ x.m+=gain;const m=Math.floor(sec/60);$('mt').textContent=`Welcome back! You were away ${m>=60?Math.floor(m/60)+'h '+m%60+'m':m+'m'} and earned $${fmt(gain)} (50% rate, 2h max).`;$('md').classList.remove('hide')}
+else $('md').classList.add('hide');
+let last=performance.now(),uc=0;
+function loop(t){const dt=Math.min(.033,(t-last)/1000);last=t;cd=Math.max(0,cd-dt);pulse=Math.max(0,pulse-dt*3);
+ const x=X();if(x.a&&S.on&&cd<=0)drop();
+ for(let i=0;i<4;i++)phys(dt/4);
+ for(let i=fl.length-1;i>=0;i--){fl[i].y-=25*dt;if((fl[i].t-=dt)<=0)fl.splice(i,1)}
+ draw();if((uc-=dt)<=0){uc=.12;ui()}requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script></body></html>
